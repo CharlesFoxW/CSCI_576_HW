@@ -9,15 +9,11 @@ public class ImageCompression {
 
         int width = 512;
         int height = 512;
-        float pi = 3.14159f;
 
         if (args.length != 2) {
             System.out.println("Expected argument count error.");
             System.exit(0);
         }
-
-        int numOfCoeff = Integer.parseInt(args[1]);
-        int firstM = (int)((double)numOfCoeff / 4096.0 + 0.5);
 
         BufferedImage img = new BufferedImage(width * 2 + 20, height, BufferedImage.TYPE_INT_RGB);
 
@@ -56,10 +52,6 @@ public class ImageCompression {
                     redBytes[x][y] = r;
                     greenBytes[x][y] = g;
                     blueBytes[x][y] = b;
-
-                    //int currentPixel = 0xff000000 | ((r & 0xff) << 16) | ((g & 0xff) << 8) | (b & 0xff);
-                    //img.setRGB(x,y,currentPixel);
-
                 }
             }
 
@@ -70,6 +62,11 @@ public class ImageCompression {
         }
 
 
+        int numOfCoeff = Integer.parseInt(args[1]);
+
+        
+
+        int firstM = (int)((double)numOfCoeff / 4096.0 + 0.5);
         // Discrete Cosine Transform:
         int blockedWidth = (int)((float)width / 8.0 + 0.5);
         int blockedHeight = (int)((float)height / 8.0 + 0.5);
@@ -116,26 +113,99 @@ public class ImageCompression {
                         freqCoeffRed[u][v] *= 0.25;
                         freqCoeffGreen[u][v] *= 0.25;
                         freqCoeffBlue[u][v] *= 0.25;
-                        if (u == 0 && v == 0) {
-                            freqCoeffRed[u][v] *= 0.5;
-                            freqCoeffGreen[u][v] *= 0.5;
-                            freqCoeffBlue[u][v] *= 0.5;
-                        }
-                        /*
+
                         if (u == 0) {
-                            freqCoeffRed[u][v] *= 1 / Math.sqrt(2.0);
-                            freqCoeffGreen[u][v] *= 1 / Math.sqrt(2.0);
-                            freqCoeffBlue[u][v] *= 1 / Math.sqrt(2.0);
+                            freqCoeffRed[u][v] *= 1.0 / Math.sqrt(2.0);
+                            freqCoeffGreen[u][v] *= 1.0 / Math.sqrt(2.0);
+                            freqCoeffBlue[u][v] *= 1.0 / Math.sqrt(2.0);
                         }
                         if (v == 0) {
-                            freqCoeffRed[u][v] *= 1 / Math.sqrt(2.0);
-                            freqCoeffGreen[u][v] *= 1 / Math.sqrt(2.0);
-                            freqCoeffBlue[u][v] *= 1 / Math.sqrt(2.0);
+                            freqCoeffRed[u][v] *= 1.0 / Math.sqrt(2.0);
+                            freqCoeffGreen[u][v] *= 1.0 / Math.sqrt(2.0);
+                            freqCoeffBlue[u][v] *= 1.0 / Math.sqrt(2.0);
                         }
-                        */
+
                     }
                 }
 
+                // Pre-compute for DCT Decoding:
+                double[][] freqCoeffDecRed = new double[8][8];
+                double[][] freqCoeffDecGreen = new double[8][8];
+                double[][] freqCoeffDecBlue = new double[8][8];
+
+                for (int n = 0; n < 8; n++) {
+                    for (int m = 0; m < 8; m++) {
+                        freqCoeffDecRed[m][n] = 0;
+                        freqCoeffDecGreen[m][n] = 0;
+                        freqCoeffDecBlue[m][n] = 0;
+                    }
+                }
+                // Perform Zig-zag traverse:
+                int ii= 0, jj = 0;
+                int totalCount = 0;
+                boolean forward = true, turning = true;
+                while (totalCount < firstM) {
+                    if (turning && jj == 0 && ii < 8 - 1) {
+                        freqCoeffDecRed[ii][jj] = freqCoeffRed[ii][jj];
+                        freqCoeffDecGreen[ii][jj] = freqCoeffGreen[ii][jj];
+                        freqCoeffDecBlue[ii][jj] = freqCoeffBlue[ii][jj];
+                        totalCount++;
+                        ii++;
+                        forward = false;
+                        turning = false;
+                        continue;
+                    }
+                    else if (turning && (jj == 0 || ii == 8 - 1)) {
+                        freqCoeffDecRed[ii][jj] = freqCoeffRed[ii][jj];
+                        freqCoeffDecGreen[ii][jj] = freqCoeffGreen[ii][jj];
+                        freqCoeffDecBlue[ii][jj] = freqCoeffBlue[ii][jj];
+                        totalCount++;
+                        jj++;
+                        forward = false;
+                        turning = false;
+                        continue;
+                    }
+                    if (turning && ii == 0 && jj < 8 - 1) {
+                        freqCoeffDecRed[ii][jj] = freqCoeffRed[ii][jj];
+                        freqCoeffDecGreen[ii][jj] = freqCoeffGreen[ii][jj];
+                        freqCoeffDecBlue[ii][jj] = freqCoeffBlue[ii][jj];
+                        totalCount++;
+                        jj++;
+                        forward = true;
+                        turning = false;
+                        continue;
+                    }
+                    else if (turning && (ii == 0 || jj == 8 - 1)) {
+                        freqCoeffDecRed[ii][jj] = freqCoeffRed[ii][jj];
+                        freqCoeffDecGreen[ii][jj] = freqCoeffGreen[ii][jj];
+                        freqCoeffDecBlue[ii][jj] = freqCoeffBlue[ii][jj];
+                        totalCount++;
+                        ii++;
+                        forward = true;
+                        turning = false;
+                        continue;
+                    }
+                    if (forward) {
+                        freqCoeffDecRed[ii][jj] = freqCoeffRed[ii][jj];
+                        freqCoeffDecGreen[ii][jj] = freqCoeffGreen[ii][jj];
+                        freqCoeffDecBlue[ii][jj] = freqCoeffBlue[ii][jj];
+                        totalCount++;
+                        if (jj == 1 || ii == 8 - 2)
+                            turning = true;
+                        ii++;
+                        jj--;
+                    }
+                    else {
+                        freqCoeffDecRed[ii][jj] = freqCoeffRed[ii][jj];
+                        freqCoeffDecGreen[ii][jj] = freqCoeffGreen[ii][jj];
+                        freqCoeffDecBlue[ii][jj] = freqCoeffBlue[ii][jj];
+                        totalCount++;
+                        if (ii == 1 || jj == 8 - 2)
+                            turning = true;
+                        ii--;
+                        jj++;
+                    }
+                }
                 // DCT Decoding:
                 for (int y = 0; y < 8; y++) {
                     for (int x = 0; x < 8; x++) {
@@ -144,46 +214,42 @@ public class ImageCompression {
                         currentBlockGreen[x][y] = 0;
                         currentBlockBlue[x][y] = 0;
 
-                        //int index = firstM;
                         for (int v = 0; v < 8; v++) {
                             for (int u = 0; u < 8; u++) {
                                 if (u == 0 && v == 0) {
-                                    currentBlockRed[x][y] += 0.5 * freqCoeffRed[u][v]
+                                    currentBlockRed[x][y] += 0.5*freqCoeffDecRed[u][v]
                                             * Math.cos((2.0 * (double) x + 1.0) * (double) u * Math.PI / 16.0)
                                             * Math.cos((2.0 * (double) y + 1.0) * (double) v * Math.PI / 16.0);
-                                    currentBlockGreen[x][y] += 0.5 * freqCoeffGreen[u][v]
+                                    currentBlockGreen[x][y] += 0.5*freqCoeffDecGreen[u][v]
                                             * Math.cos((2.0 * (double) x + 1.0) * (double) u * Math.PI / 16.0)
                                             * Math.cos((2.0 * (double) y + 1.0) * (double) v * Math.PI / 16.0);
-                                    currentBlockBlue[x][y] += 0.5 * freqCoeffBlue[u][v]
-                                            * Math.cos((2.0 * (double) x + 1.0) * (double) u * Math.PI / 16.0)
-                                            * Math.cos((2.0 * (double) y + 1.0) * (double) v * Math.PI / 16.0);
-                                } else {
-                                    currentBlockRed[x][y] += freqCoeffRed[u][v]
-                                            * Math.cos((2.0 * (double) x + 1.0) * (double) u * Math.PI / 16.0)
-                                            * Math.cos((2.0 * (double) y + 1.0) * (double) v * Math.PI / 16.0);
-                                    currentBlockGreen[x][y] += freqCoeffGreen[u][v]
-                                            * Math.cos((2.0 * (double) x + 1.0) * (double) u * Math.PI / 16.0)
-                                            * Math.cos((2.0 * (double) y + 1.0) * (double) v * Math.PI / 16.0);
-                                    currentBlockBlue[x][y] += freqCoeffBlue[u][v]
+                                    currentBlockBlue[x][y] += 0.5*freqCoeffDecBlue[u][v]
                                             * Math.cos((2.0 * (double) x + 1.0) * (double) u * Math.PI / 16.0)
                                             * Math.cos((2.0 * (double) y + 1.0) * (double) v * Math.PI / 16.0);
                                 }
-                                /*
-                                if (u == 0) {
-                                    currentBlockRed[x][y] *= 1 / Math.sqrt(2.0);
-                                    currentBlockGreen[x][y] *= 1 / Math.sqrt(2.0);
-                                    currentBlockBlue[x][y] *= 1 / Math.sqrt(2.0);
+                                else if (u == 0 || v == 0) {
+                                    currentBlockRed[x][y] += 1.0 / Math.sqrt(2.0) * freqCoeffDecRed[u][v]
+                                            * Math.cos((2.0 * (double) x + 1.0) * (double) u * Math.PI / 16.0)
+                                            * Math.cos((2.0 * (double) y + 1.0) * (double) v * Math.PI / 16.0);
+                                    currentBlockGreen[x][y] += 1.0 / Math.sqrt(2.0) * freqCoeffDecGreen[u][v]
+                                            * Math.cos((2.0 * (double) x + 1.0) * (double) u * Math.PI / 16.0)
+                                            * Math.cos((2.0 * (double) y + 1.0) * (double) v * Math.PI / 16.0);
+                                    currentBlockBlue[x][y] += 1.0 / Math.sqrt(2.0) * freqCoeffDecBlue[u][v]
+                                            * Math.cos((2.0 * (double) x + 1.0) * (double) u * Math.PI / 16.0)
+                                            * Math.cos((2.0 * (double) y + 1.0) * (double) v * Math.PI / 16.0);
                                 }
-                                if (v == 0) {
-                                    currentBlockRed[x][y] *= 1 / Math.sqrt(2.0);
-                                    currentBlockGreen[x][y] *= 1 / Math.sqrt(2.0);
-                                    currentBlockBlue[x][y] *= 1 / Math.sqrt(2.0);
+                                else {
+                                    currentBlockRed[x][y] += freqCoeffDecRed[u][v]
+                                            * Math.cos((2.0 * (double) x + 1.0) * (double) u * Math.PI / 16.0)
+                                            * Math.cos((2.0 * (double) y + 1.0) * (double) v * Math.PI / 16.0);
+                                    currentBlockGreen[x][y] += freqCoeffDecGreen[u][v]
+                                            * Math.cos((2.0 * (double) x + 1.0) * (double) u * Math.PI / 16.0)
+                                            * Math.cos((2.0 * (double) y + 1.0) * (double) v * Math.PI / 16.0);
+                                    currentBlockBlue[x][y] += freqCoeffDecBlue[u][v]
+                                            * Math.cos((2.0 * (double) x + 1.0) * (double) u * Math.PI / 16.0)
+                                            * Math.cos((2.0 * (double) y + 1.0) * (double) v * Math.PI / 16.0);
                                 }
-                                */
-                                //index--;
                             }
-                            //if (index <= 0)
-                            //    break;
                         }
 
                         currentBlockRed[x][y] *= 0.25;
@@ -191,6 +257,7 @@ public class ImageCompression {
                         currentBlockBlue[x][y] *= 0.25;
                     }
                 }
+
 
                 for (int n = 0; n < 8; n++) {
                     for (int m = 0; m < 8; m++) {
@@ -212,7 +279,6 @@ public class ImageCompression {
                         blueBytesDCT[i*8+m][j*8+n] = (byte)((int)(currentBlockBlue[m][n] + 0.5));
                     }
                 }
-                //System.out.println(i + " and " + j + ";");
             }   // for i
         }   // for j
 
@@ -440,8 +506,6 @@ public class ImageCompression {
             }
         }
 
-
-
         // Use a panel and label to display the image
         JPanel  panel = new JPanel ();
         panel.add (new JLabel (new ImageIcon (img)));
@@ -452,7 +516,7 @@ public class ImageCompression {
         frame.setVisible(true);
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
-
-
     }
+
+
 }
